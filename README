@@ -1,0 +1,10 @@
+MAIL BY ELENA DUBROVA WHO IS THE CORRESPONDING AUTHOR OF BNS
+
+
+COMPLILE PROCESS
+
+1. Make two directories on the same level called bns and MiniSat_v1.14. Save the bns source in the bns directory under the name bns.c and un-tar the minisat in the 2nd. 
+2. Then, to compile, do: 
+
+g++ ../MiniSat_v1.14/Solver.o -I../MiniSat_v1.14 bns.c -o bns
+
