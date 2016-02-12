@@ -16,9 +16,10 @@
 #include <time.h>
 #include <assert.h>
 #include <unistd.h>
-#include "Solver.h"
 #include <vector>
-
+#include <string>
+#include <iostream>
+#include "Solver.h"
 
 #define INDEX_OF_FIRST_VARIABLE 1
 #define MAXIMUM_NUMBER_OF_RELEVANT_NODES_COUNTED 100
@@ -37,23 +38,21 @@
 //using namespace std; 
 //using namespace  Minisat;
 
-  /* Reading from file informaition*/
-  int number_of_var,redunt_number_of_var,number_print_var;
-  int *var2red_var;
-  int *redunt_var2var;
+/* Reading from file informaition*/
+int number_of_var,redunt_number_of_var,number_print_var;
+int *var2red_var;
+int *redunt_var2var;
 
 #define MAX_LENGTH 10000
 #define MAX_NUMBER_OF_INPUTS 20
-   /*---------------------------------*/
 
-
+/*---------------------------------*/
 static struct {
   std::vector< std::vector<Lit> > *orig_clauses;
   Solver *S;
   unsigned number_of_var;
   unsigned depth;
 }global_var;
-
 
 
 //#define Lit(var) mkLit(var)
@@ -71,6 +70,7 @@ void                   read_minterm_file_to_solver(char * FileName, Solver &S,in
 /*Compare stats a and b in vector of stats stored in stats_sequance.*/
 /*The first state in sequance assumed to have index 0, each state consists of sequence of values of */
 bool compare_states(unsigned a,unsigned b,unsigned number_var, vec<lbool>& stats_sequance ){
+
   lbool *a_pr, *b_pr;
   unsigned size=stats_sequance.size();
   ASSERT(!( size < (a+1)*number_var || size < (b+1)*number_var ));
@@ -84,7 +84,6 @@ bool compare_states(unsigned a,unsigned b,unsigned number_var, vec<lbool>& stats
     b_pr++;
   }
   return true;
-
 }
 
 /*Make state with index a from the stats_sequance not allowed in future solutions of S in position with index b */
@@ -97,26 +96,41 @@ void constrain_state(unsigned a, vec<lbool>& stats_sequance, unsigned b, Solver 
   ASSERT( a_tmp+number_var <= stats_sequance.size() );
   ASSERT( b_tmp+number_var <= S.nVars() );
 
-
-    while(number_var--){
-      if (stats_sequance[a_tmp] != l_Undef){
+  while(number_var--){
+    if (stats_sequance[a_tmp] != l_Undef){
 
 #ifdef PRINT_STATE
 	//printf( "%s", (stats_sequance[a_tmp]==l_True)?"1":"0");
 #endif 
 	
-	lits.push((stats_sequance[a_tmp]==l_True)?~Lit( b_tmp ):Lit( b_tmp ));
-      }else{
+	    lits.push((stats_sequance[a_tmp]==l_True)?~Lit( b_tmp ):Lit( b_tmp ));
+    }else{
 	//printf("-");
-      }
-      a_tmp++;
-      b_tmp++;
     }
-    S.addClause(lits);
+    a_tmp++;
+    b_tmp++;
+  }
+  S.addClause(lits);
+
 #ifdef PRINT_STATE
     //puts(" ");
 #endif  
 }
+
+/*
+void constrain_state_(unsigned a, char * result, Solver &S, unsigned number_var){
+  vec<Lit> lits;
+  int a_tmp=a*number_var;
+  int b_tmp=0;
+  
+  while(number_var--){
+      lits.push((result[a_tmp]=='1')?~Lit(b_tmp):Lit(b_tmp));
+      a_tmp++;
+      b_tmp++;
+  }
+  S.addClause(lits);
+}
+*/
 
 void add_clauses_with_variable_shift( std::vector< std::vector<Lit> > &clauses2add, Solver &S,int shift){
 
@@ -125,9 +139,9 @@ void add_clauses_with_variable_shift( std::vector< std::vector<Lit> > &clauses2a
   lits.clear();  
 
   i=clauses2add.size();
-  while(i--){//PRINT(i);
-    int j=clauses2add[i].size();//PRINT(j);   
-    while(j--){//PRINT(toInt(clauses2add[i][j]) + (shift+shift));
+  while(i--){//PRINT(i); /*ckhong: no change in orig_clauses*/
+    int j=clauses2add[i].size();//PRINT(j);  
+    while(j--){//PRINT(toInt(clauses2add[i][j])); PRINT(toInt(clauses2add[i][j]) + (shift+shift));
       lits.push(toLit( toInt(clauses2add[i][j]) + (shift+shift) ));
     }
    
@@ -155,10 +169,10 @@ void construct_depth(unsigned k){
    
   i = global_var.number_of_var * depth_left_to_build;
   while(i--){
-    (*S).newVar();
+    (*S).newVar(); /*ckhong: make a new variable to represent k-depth variable*/
   }
 
-  for(i=global_var.depth-1; i< (k - 1); i++){
+  for(i=global_var.depth-1; i< (k - 1); i++){ //ckhong: shift clauses for depth_left_to_build
     add_clauses_with_variable_shift(*global_var.orig_clauses, *S, i*global_var.number_of_var);
   }
 
@@ -187,7 +201,7 @@ main(int argc, char *argv[])
   std::vector< std::vector<Lit> > orig_clauses;
   global_var.orig_clauses = &orig_clauses;
 
-  ReadNET(argv[1], S);
+  ReadNET(argv[1], S); //ckhong: read networks and then make transition relations with depth 2 by using update functions
     
   vec<Clause*>* orig_clauses_pr = S.Clauses();
 
@@ -195,9 +209,10 @@ main(int argc, char *argv[])
   lits.clear();  
 
   i=(*orig_clauses_pr).size();
-  //PRINT(i);
+  PRINT(i);
+  
   while(i--){
-    int j=(*((*orig_clauses_pr)[i])).size();
+    int j=(*((*orig_clauses_pr)[i])).size(); //ckhong: j has the number of literals in each clause
     //PRINT(j);
 
     while(j--){
@@ -205,12 +220,15 @@ main(int argc, char *argv[])
       lits.push_back((*((*orig_clauses_pr)[i]))[j]);
     }
 
-    orig_clauses.push_back( lits );
+    orig_clauses.push_back( lits ); 
     lits.clear();
   }
 
-  /*Handle assignments of variables made in solver*/
+  /*Handle assignments of variables made in solver*/ 
+  /*ckhong: what is this for ?*/ 
+  /*ckhong: initial state value setting ?*/
   i=number_of_var;
+  //PRINT(i);
   while(i--){
     if(S.value(i)!= l_Undef){
       lits.push_back((S.value(i)==l_True)? Lit(i) : ~Lit(i));
@@ -226,66 +244,58 @@ main(int argc, char *argv[])
   global_var.depth=2;
 
 
-  if(number_of_var<100){
+  if(number_of_var<100){ //ckhong: make n-length formula
     construct_depth(number_of_var);
   }else{
     construct_depth(100);
   }
 
+  std::vector<std::string> results;
 
   //puts("Start searching...");
   while(1){
 
     if (!S.solve()) break;
-    
+    /*ckhong: found valid path*/
 
-/*
-    //Print out found sequence of global_var.depth lenght (it not neccessary has an atracktor)
-    for(i=0;i<global_var.depth;i++){
-    for (int y = i*number_of_var; y < i*number_of_var+number_of_var; y++){
-      if (S.model[y] != l_Undef){
-	printf( "%s", (S.model[y]==l_True)?"1":"0");
-      }else{
-	printf("-");
-      }
-    }puts("\n");
-    }
-    getchar();
-*/
-
-
- 
     for( i=1; i<global_var.depth; i++ ){
-	
       if(compare_states(0,i,number_of_var,S.model )){
-	atractor_count++;
-	atractor_stats_count+=i;
-	//PRINT(atractor_stats_count);
-	//constrain all states of atractor sequence on 0 index variable
-	for( j = 0; j < i; j++ ){
-	  constrain_state(j, S.model, 0, S, number_of_var );
-#ifdef PRINT_STATE
-  	  int a_tmp=j*number_of_var;	  
-	  int counter=number_of_var;
-	  while(counter--){
-	      if (S.model[a_tmp] != l_Undef){
-		printf( "%s", (S.model[a_tmp]==l_True)?"1":"0");
-	      }else{
-		printf("-");
+    	atractor_count++;
+    	atractor_stats_count+=i;
+    	//PRINT(atractor_stats_count);
+    	//constrain all states of atractor sequence on 0 index variable
+        
+        char temp_attr[i*number_of_var];
+    	
+        for( j = 0; j < i; j++ ){
+	      constrain_state(j, S.model, 0, S, number_of_var );
+#ifdef PRINT_STATE 
+          /*ckhong: attractor state print out*/
+    	  int a_tmp=j*number_of_var;	  
+	      int counter=number_of_var;
+	      while(counter--){
+	        if(S.model[a_tmp] != l_Undef){
+		      printf( "%s", (S.model[a_tmp]==l_True)?"1":"0");
+              sprintf(temp_attr+a_tmp, "%s", (S.model[a_tmp]==l_True)?"1":"0");
+	        }else{
+		      printf("-");
+              sprintf(temp_attr+a_tmp, "-");
+	        }
+	        a_tmp++;
 	      }
-	      a_tmp++;
-	  }
-        printf("\n");
+          printf("\n");
 #endif 
-	}
-	printf("Attractor %d is of length %d\n\n",atractor_count,i);
-	avg_length = avg_length + i;
-	break;
+	    }
+        results.push_back(temp_attr);
+        results.push_back("\n");
+	    printf("Attractor %d is of length %d\n\n",atractor_count,i);
+	    avg_length = avg_length + i;
+	    break;
       }
     }
 
     if(global_var.depth == i){
-      construct_depth( global_var.depth << 1 );
+      construct_depth( global_var.depth << 1 ); //ckhong: depth = depth * 2
       printf("Depth of unfolding transition relation is increased to %d\n",global_var.depth);
     }
   }
@@ -293,17 +303,64 @@ main(int argc, char *argv[])
   printf("Total number of attractors is %d\n",atractor_count);
   printf("Average length of attractors is %0.2f\n",avg_length/(float)atractor_count);
 
-  //printf("%d %d %0.2f ",n,atractor_count,avg_length/(float)atractor_count);
+  for (int i=0; i<results.size(); i++)
+    std::cout << results[i];
+    std::cout << "\n";
 
-  //PRINT(atractor_count);
-  //PRINT(atractor_stats_count);
-  //PRINT(global_var.depth);
-  //printf(ret ? "SATISFIABLE\n" : "UNSATISFIABLE\n");
-  return 0;
+
+  /* ####### Basin Analysis ####### */
+
+  Solver S_;
+  lits.clear();
+
+  ReadNET(argv[1], S_);
+
+  orig_clauses_pr = S_.Clauses();
+
+  /*ckhong: assign initial state value*/
+  i=number_of_var;
+  vec<Lit> tLits;
+  while(i--){
+      tLits.push((results[0][i]=='1')? Lit(i) : ~Lit(i));
+      S_.addClause(tLits);
+      tLits.clear();
+  }
+
+  global_var.S = &S_;
+  global_var.number_of_var = number_of_var;
+  global_var.depth = 2;
+
+  i=number_of_var;
+  tLits.clear();
+  while(i--){
+    tLits.push((results[0][i]=='1')? ~Lit(i+number_of_var):Lit(i+number_of_var));
+  }
+  S_.addClause(tLits);
+
   
+  while (1){
+      if (!S_.solve()) break;
+
+      for (i=1; i<global_var.depth; i++) {        
+          int a_tmp=i*number_of_var;
+          int counter=number_of_var;
+
+          constrain_state(1, S_.model, 1, S_, number_of_var);
+          
+          while(counter--){
+            if(S_.model[a_tmp] != l_Undef){
+               printf( "%s", (S_.model[a_tmp]==l_True)? "1":"0");
+            } else{
+               printf("-");
+            }
+            a_tmp++;
+          }
+        printf("\n");
+        it--;
+      }
+  }
+  return 0;
 }
-
-
 
 
 /* Read in NET file and returns 2^n transition function*/
@@ -321,7 +378,6 @@ ReadNET(char *fileName, Solver& S)
   FILE *fp,*fp_temp;      
   vec<Lit> lits;
   std::vector<Lit> lits_std;
-
 
   unsigned line_count=0;
 
@@ -347,11 +403,8 @@ ReadNET(char *fileName, Solver& S)
 
   size_nonred_array=number_of_var;
 
-
-
   redunt_number_of_var=number_of_var;
   redunt_var2var=(int*) calloc(redunt_number_of_var+1, sizeof(int));
-
 
   number_print_var=number_of_var;
 
@@ -375,8 +428,6 @@ ReadNET(char *fileName, Solver& S)
   //RBN_init_global_var(bdd_manager);
 
   /*-------------------- Filling information about nodes  -------------------*/
-
-
   while(!feof(fp)){
     fgets(temp,MAX_LENGTH, fp);
   next_vertex:
@@ -385,177 +436,162 @@ ReadNET(char *fileName, Solver& S)
 
       i=3;
       sscanf(&temp[i],"%d",&current_var);
-      
 
       if( current_var < 0 || current_var >redunt_number_of_var){
-	fprintf(stderr, "Wrong format of input file in line %d.The varible %d in string:\n %s exceeds number of declared variables.\n",line_count, current_var,temp);
-	exit (1);
+	    fprintf(stderr, "Wrong format of input file in line %d.The varible %d in string:\n %s exceeds number of declared variables.\n",line_count, current_var,temp);
+	    exit (1);
       }
       
-
       i++;
       /* go to first space */
       while(temp[i]!=' '){
-	if(temp[i]=='\n'){
-	  fprintf(stderr, "Wrong format of input file in line %d. Wrong format of the string: %s\n",line_count, temp );
-	  exit (1);
-	}
-	i++;
+	    if(temp[i]=='\n'){
+	      fprintf(stderr, "Wrong format of input file in line %d. Wrong format of the string: %s\n",line_count, temp );
+	      exit (1);
+	    }
+	    i++;
       }
       i++;
       /* go to the end of sequense of spaces */
       while(temp[i]==' '){
-	i++;
+	    i++;
       }
       if(temp[i]=='\n'){
-	fprintf(stderr, "Wrong format of input file in line %d. Wrong format of the string: %s\n",line_count, temp );
-	exit (1);
+	    fprintf(stderr, "Wrong format of input file in line %d. Wrong format of the string: %s\n",line_count, temp );
+	    exit (1);
       }
       sscanf(&temp[i],"%d",&number_of_inputs);
 
       if(number_of_inputs > MAX_NUMBER_OF_INPUTS){
-	fprintf(stderr, "Wrong format of input file in line %d . Number of inputs exceeds allowed number of inputs %s\n",line_count, temp  );
-	exit (1);
+	    fprintf(stderr, "Wrong format of input file in line %d . Number of inputs exceeds allowed number of inputs %s\n",line_count, temp  );
+	    exit (1);
       }
       
-
       while(1){
-	i++;
-	while(temp[i]!=' '){
-	  if(temp[i]=='\n'){
-	    goto end_loops;
-	  }
-	  i++;
-	}
-	i++;
+	    i++;
+	    while(temp[i]!=' '){
+	      if(temp[i]=='\n'){
+	        goto end_loops;
+	      }
+	      i++;
+	    }
+	    i++;
 	/* go to the end of sequense of spaces */
-	while(temp[i]==' '){
-	  i++;
-	}
-	if(temp[i]=='\n'){
-	  goto end_loops;
-	}
-	sscanf(&temp[i],"%d",&tmp_1);
+	    while(temp[i]==' '){
+	      i++;
+	    }
+	    if(temp[i]=='\n'){
+	      goto end_loops;
+	    }
+	    sscanf(&temp[i],"%d",&tmp_1);
 
-	if( tmp_1 < 0 || tmp_1 >redunt_number_of_var){
-	  fprintf(stderr,"Wrong format of input file in line %d. The varible %d in string:\n %s exceeds number of declared variables.\n",line_count, tmp_1,temp);
-	  exit (1);
-	}
+	    if( tmp_1 < 0 || tmp_1 >redunt_number_of_var){
+	      fprintf(stderr,"Wrong format of input file in line %d. The varible %d in string:\n %s exceeds number of declared variables.\n",line_count, tmp_1,temp);
+	      exit (1);
+	    }
 	
-	if( redunt_var2var[tmp_1] == 0){
-	  fprintf(stderr, "Wrong format of input file in line %d. One of the input was not declared in list of inputs %s\n",line_count, temp  );
-	  exit (1);
-	}
+	    if( redunt_var2var[tmp_1] == 0){
+	      fprintf(stderr, "Wrong format of input file in line %d. One of the input was not declared in list of inputs %s\n",line_count, temp  );
+	      exit (1);
+	    }
 
-
-	input_array[current_number_of_inputs++]= redunt_var2var[tmp_1];
-
-
+	    input_array[current_number_of_inputs++]= redunt_var2var[tmp_1];
       }
+    
     end_loops:
-
-
       if(current_number_of_inputs!=number_of_inputs){
-	fprintf(stderr, "Wrong format of input file in line %d. Declared number of inputs is not equal to actual number of input %s\n",line_count, temp  );
-	exit (1);
+	    fprintf(stderr, "Wrong format of input file in line %d. Declared number of inputs is not equal to actual number of input %s\n",line_count, temp  );
+	    exit (1);
       }
 
       if(number_of_inputs==0){
-	  fgets(temp,MAX_LENGTH, fp);
+	    fgets(temp,MAX_LENGTH, fp);
 	  
-	  if( temp[0]=='1'){
-	    lits.push( Lit( current_var - INDEX_OF_FIRST_VARIABLE ) );
-	    S.addClause(lits);
-	    lits.clear();
-	  }else{
-	    if( temp[0]!='0'){
-	      printf("Node %d assumed to be constant 0\n",current_var);
+	    if( temp[0]=='1'){
+	      lits.push( Lit( current_var - INDEX_OF_FIRST_VARIABLE ) );
+	      S.addClause(lits);
+	      lits.clear();
+	    }else{
+	      if( temp[0]!='0'){
+	        printf("Node %d assumed to be constant 0\n",current_var);
+	      }
+	      lits.push( ~Lit( current_var - INDEX_OF_FIRST_VARIABLE ) );
+	      S.addClause(lits);
+	      lits.clear();
 	    }
-	    lits.push( ~Lit( current_var - INDEX_OF_FIRST_VARIABLE ) );
-	    S.addClause(lits);
-	    lits.clear();
-	  }
-	  goto next_vertex;
+	    goto next_vertex;
       }
 
-
       /*---------------  Reading in the function of the node ---------------*/
-
-             
 
       current_number_of_inputs=0;
 
       while(!feof(fp)){
-	fgets(temp,MAX_LENGTH, fp);
-	if( temp[0]=='0' || temp[0]=='1' || temp[0]=='-'){
+	    fgets(temp,MAX_LENGTH, fp);
+	    if( temp[0]=='0' || temp[0]=='1' || temp[0]=='-'){
 
-	  for(i=0;i<number_of_inputs;i++){
-	    if(temp[i]=='-')
-	      continue;
+	      for(i=0;i<number_of_inputs;i++){
+	        if(temp[i]=='-')
+	          continue;
+            //PRINT(input_array[i]);
+	        lits.push( (temp[i]=='1') ? ~Lit( number_of_var + input_array[i] - INDEX_OF_FIRST_VARIABLE) : Lit(number_of_var + input_array[i] - INDEX_OF_FIRST_VARIABLE) );
 
-	    lits.push( (temp[i]=='1') ? ~Lit( number_of_var + input_array[i] - INDEX_OF_FIRST_VARIABLE) : Lit(number_of_var + input_array[i] - INDEX_OF_FIRST_VARIABLE) );
+	        if(temp[i]!='1' && temp[i]!='0'){
+	          fprintf(stderr, "Wrong format of input file in line %d. Wrong line:%s\n",line_count, temp  );
+	          exit (1);	
+	        }      
+	      }
 
-	    
-	    if(temp[i]!='1' && temp[i]!='0'){
-	      fprintf(stderr, "Wrong format of input file in line %d. Wrong line:%s\n",line_count, temp  );
-	      exit (1);	
-	    }      
-	  }
+	      ASSERT((number_of_var + current_var - INDEX_OF_FIRST_VARIABLE) < S.nVars());
 
-	  ASSERT((number_of_var + current_var - INDEX_OF_FIRST_VARIABLE) < S.nVars());
+	      i++;
+	      if(temp[i]=='1'){
+	        lits.push( Lit(  current_var - INDEX_OF_FIRST_VARIABLE ) );
+	      }else{
+	        if(temp[i]=='0'){
+	          lits.push( ~Lit( current_var - INDEX_OF_FIRST_VARIABLE ) );
+	        }else{
+	          fprintf(stderr, "Wrong format of input file in line %d. Unexpected charecter in output of minterm in line:%s\n",line_count, temp  );
+	          exit (1);	
+	        }
+	      }
+	      S.addClause(lits);
+          
+          //PRINT(current_var);
+          for (int x=0; x<lits.size();x++) {
+            //PRINT(toInt(lits[x]));  
+          }
 
-
-	  i++;
-	  if(temp[i]=='1'){
-	    lits.push( Lit(  current_var - INDEX_OF_FIRST_VARIABLE ) );
-	  }else{
-	    if(temp[i]=='0'){
-	      lits.push( ~Lit( current_var - INDEX_OF_FIRST_VARIABLE ) );
-	    }else{
-	      fprintf(stderr, "Wrong format of input file in line %d. Unexpected charecter in output of minterm in line:%s\n",line_count, temp  );
-	      exit (1);	
-	    }
-	  }
-	  S.addClause(lits);
-
-
-	if(lits.size()==2){
-	   //PRINT(lits.size());
-           for(int j=0; j<lits.size();j++){
+	      if(lits.size()==2){
+	     //PRINT(lits.size());
+            for(int j=0; j<lits.size();j++){
            	//PRINT(toInt(lits[j]));
-           	lits_std.push_back(lits[j]);
+              lits_std.push_back(lits[j]);
         	}
-           (*global_var.orig_clauses).push_back( lits_std );
-           lits_std.clear();
-	}
+            (*global_var.orig_clauses).push_back( lits_std );
+            lits_std.clear();
+	      }
+	      lits.clear();	 
+	    }else{
 
-
-
-	  lits.clear();	 
-
-	}else{
-
-	  if( redunt_var2var[current_var] == 0){
-	    fprintf(stderr, "Wrong format of input file.The node:%d was not declared \n", current_var  );
-	    exit (1);
-	  }
+	      if( redunt_var2var[current_var] == 0){
+	        fprintf(stderr, "Wrong format of input file.The node:%d was not declared \n", current_var  );
+	        exit (1);
+	      }
 	  
-	  break;
-	  
-	}	
+	      break; 
+	    }	
       }
 	  
       if(!feof(fp)){
-	goto next_vertex;
+	    goto next_vertex;
       }
 
       /*We are here after we reach the end of the file*/
       if( redunt_var2var[current_var] == 0){
-	fprintf(stderr, "Wrong format of input file.The node:%d was not declared \n", current_var  );
-	exit (1);
+	    fprintf(stderr, "Wrong format of input file.The node:%d was not declared \n", current_var  );
+	    exit (1);
       }
-
-      
     }/* -------- end processing input informaition of a vertex ------------*/
   }
 /*end processing the file*/
@@ -598,7 +634,7 @@ void read_minterm_file_to_solver(char * fileName, Solver &S,int *input_array,int
     //puts(temp);
     for(i=0;i<input_array_size;i++){
       if(temp[i]=='-')
-	continue;
+	    continue;
       lits.push( (temp[i]=='1') ? ~Lit( input_array[i] - INDEX_OF_FIRST_VARIABLE ) : Lit(input_array[i] - INDEX_OF_FIRST_VARIABLE ) );
       //printf("%d:%d ",i,toInt(lits[lits.size()-1]));
     }
