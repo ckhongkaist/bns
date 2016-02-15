@@ -47,20 +47,24 @@ int *redunt_var2var;
 #define MAX_NUMBER_OF_INPUTS 20
 
 /*---------------------------------*/
+struct Attractor {
+    std::vector<std::string> states;
+    unsigned length;
+};
+
 static struct {
   std::vector< std::vector<Lit> > *orig_clauses;
+  std::vector<Attractor> Attractors;
   Solver *S;
   unsigned number_of_var;
   unsigned depth;
 }global_var;
-
 
 //#define Lit(var) mkLit(var)
 #define toInt(x) index(x)
 
 
 static unsigned        size_nonred_array;
-
 
 void                   ReadNET(char *fileName,Solver& S);
 
@@ -179,6 +183,53 @@ void construct_depth(unsigned k){
   global_var.depth=k;  
 }
 
+/*###### Make it recursive ! ######*/
+int getPredecessors(Solver& S, const char *state, int num_var, int curr_depth) {
+    vec<Lit> lits;
+    int number_of_predecessors = 1;
+    
+//    ReadNET(filename, S);
+
+    int i = num_var;
+    while (i--){
+      lits.push((state[i]=='1')? Lit(i) : ~Lit(i));
+      S.addClause(lits);
+      lits.clear();
+    }
+
+    
+    if (curr_depth > 2)
+        return number_of_predecessors;
+
+    while (1){
+      if (!S.solve()) break;
+
+      int a_tmp=curr_depth*num_var;
+      int counter=num_var;
+
+      constrain_state(curr_depth, S.model, curr_depth, S, num_var);
+
+      while(counter--){
+        if(S.model[a_tmp] != l_Undef){
+          printf( "%s", (S.model[a_tmp]==l_True)? "1":"0");
+          //lits.push((S.model[a_tmp]==l_True)? Lit(a_tmp): ~Lit(a_tmp));
+          //S.addClause(lits);
+          //lits.clear();
+        } else{
+          printf("-");
+        }
+        a_tmp++;
+      }
+        
+      //number_of_predecessors = number_of_predecessors + getPredecessors(S, state, num_var, curr_depth + 1);
+
+      printf("\n");
+
+    }
+
+    return number_of_predecessors;
+}
+
 int 
 main(int argc, char *argv[]) 
 {
@@ -250,7 +301,7 @@ main(int argc, char *argv[])
     construct_depth(100);
   }
 
-  std::vector<std::string> results;
+  //std::vector<std::string> results;
 
   //puts("Start searching...");
   while(1){
@@ -265,31 +316,40 @@ main(int argc, char *argv[])
     	//PRINT(atractor_stats_count);
     	//constrain all states of atractor sequence on 0 index variable
         
-        char temp_attr[i*number_of_var];
-    	
+        //char temp_attr[i*number_of_var];
+    	char tState[number_of_var];
+        Attractor tAttr; 
+        tAttr.length = i;
+
         for( j = 0; j < i; j++ ){
 	      constrain_state(j, S.model, 0, S, number_of_var );
 #ifdef PRINT_STATE 
           /*ckhong: attractor state print out*/
     	  int a_tmp=j*number_of_var;	  
+          int b_tmp=0;
 	      int counter=number_of_var;
 	      while(counter--){
 	        if(S.model[a_tmp] != l_Undef){
-		      printf( "%s", (S.model[a_tmp]==l_True)?"1":"0");
-              sprintf(temp_attr+a_tmp, "%s", (S.model[a_tmp]==l_True)?"1":"0");
+		      //printf( "%s", (S.model[a_tmp]==l_True)?"1":"0");
+              //sprintf(temp_attr+a_tmp, "%s", (S.model[a_tmp]==l_True)?"1":"0");
+              sprintf(tState+b_tmp, "%s", (S.model[a_tmp]==l_True)?"1":"0");
 	        }else{
-		      printf("-");
-              sprintf(temp_attr+a_tmp, "-");
+		      //printf("-");
+              //sprintf(temp_attr+a_tmp, "-");
+              sprintf(tState+b_tmp, "-");
 	        }
 	        a_tmp++;
+            b_tmp++;
 	      }
-          printf("\n");
+          tAttr.states.push_back(tState);
+          //printf("\n");
 #endif 
 	    }
-        results.push_back(temp_attr);
-        results.push_back("\n");
-	    printf("Attractor %d is of length %d\n\n",atractor_count,i);
-	    avg_length = avg_length + i;
+        //results.push_back(temp_attr);
+        //results.push_back("\n");
+        global_var.Attractors.push_back(tAttr);
+	    //printf("Attractor %d is of length %d\n\n",atractor_count,i);
+	    //avg_length = avg_length + i;
 	    break;
       }
     }
@@ -303,41 +363,58 @@ main(int argc, char *argv[])
   printf("Total number of attractors is %d\n",atractor_count);
   printf("Average length of attractors is %0.2f\n",avg_length/(float)atractor_count);
 
+  /*
   for (int i=0; i<results.size(); i++)
     std::cout << results[i];
-    std::cout << "\n";
+  std::cout << "\n";
+  */
 
+  for (int i=0; i<global_var.Attractors.size(); i++) {
+    std::cout << "Attractor " << i << "\n";
+    for (int j=0; j<global_var.Attractors[i].length; j++)
+        std::cout << global_var.Attractors[i].states[j] << " " ;
+    std::cout << "\n";
+  }
 
   /* ####### Basin Analysis ####### */
-
   Solver S_;
-  lits.clear();
+  //lits.clear();
 
   ReadNET(argv[1], S_);
 
   orig_clauses_pr = S_.Clauses();
 
   /*ckhong: assign initial state value*/
+  /*##### Check precedessors of attractor a_2 (results[2]) #####*/
+  /*
   i=number_of_var;
   vec<Lit> tLits;
   while(i--){
-      tLits.push((results[0][i]=='1')? Lit(i) : ~Lit(i));
+      //tLits.push((results[0][i]=='1')? Lit(i) : ~Lit(i));
+      tLits.push((global_var.Attractors[0].states[0][i]=='1')? Lit(i) : ~Lit(i));
       S_.addClause(tLits);
       tLits.clear();
-  }
+  }*/
 
-  global_var.S = &S_;
+  //global_var.S = &S_;
   global_var.number_of_var = number_of_var;
   global_var.depth = 2;
 
+  //printf("%d\n", getPredecessors(orig_clauses, number_of_var, 1));
+
+  printf("%d\n", getPredecessors(S_, global_var.Attractors[0].states[0].c_str(), number_of_var, 1));
+  
+  /*
   i=number_of_var;
   tLits.clear();
   while(i--){
-    tLits.push((results[0][i]=='1')? ~Lit(i+number_of_var):Lit(i+number_of_var));
+    //tLits.push((results[0][i]=='1')? ~Lit(i+number_of_var):Lit(i+number_of_var));
+    tLits.push((global_var.Attractors[0].states[0][i]=='1')? ~Lit(i+number_of_var) : Lit(i+number_of_var));
   }
   S_.addClause(tLits);
+  */
 
-  
+  /* 
   while (1){
       if (!S_.solve()) break;
 
@@ -356,9 +433,8 @@ main(int argc, char *argv[])
             a_tmp++;
           }
         printf("\n");
-        it--;
       }
-  }
+  }*/
   return 0;
 }
 
