@@ -55,6 +55,7 @@ struct Attractor {
 static struct {
   std::vector< std::vector<Lit> > *orig_clauses;
   std::vector<Attractor> Attractors;
+  //std::vector<std::string> basins;
   Solver *S;
   unsigned number_of_var;
   unsigned depth;
@@ -183,48 +184,80 @@ void construct_depth(unsigned k){
   global_var.depth=k;  
 }
 
-/*###### Make it recursive ! ######*/
-int getPredecessors(Solver& S, const char *state, int num_var, int curr_depth) {
-    vec<Lit> lits;
-    int number_of_predecessors = 1;
-    
-//    ReadNET(filename, S);
 
+/*###### Make it recursive ! ######*/
+//int getPredecessors(Solver& S, const char *state, int num_var, int curr_depth) {
+int getPredecessors( std::vector< std::vector<Lit> > &orig_clauses, const char *state, int num_var, int curr_depth) {
+    vec<Lit> lits;
+    //global_var.basins.push_back(state);
+
+    int number_of_predecessors = 1;
+
+    /*
+    if (curr_depth == 12){ 
+        //printf("\n");
+        return number_of_predecessors;
+    }*/
+
+    Solver S;
     int i = num_var;
+    while (i--){
+        S.newVar(); S.newVar();
+    }
+    add_clauses_with_variable_shift(orig_clauses, S, 0);
+    
+    //char state_[] = "000001000000";
+
+    i = num_var;
     while (i--){
       lits.push((state[i]=='1')? Lit(i) : ~Lit(i));
       S.addClause(lits);
       lits.clear();
     }
 
-    
-    if (curr_depth > 2)
-        return number_of_predecessors;
+    i = num_var;
+    while (i--){
+        lits.push((state[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+    }
+    S.addClause(lits);
+    lits.clear();
 
     while (1){
       if (!S.solve()) break;
 
-      int a_tmp=curr_depth*num_var;
+      int a_tmp=num_var;
+      int b_tmp=0;
       int counter=num_var;
 
-      constrain_state(curr_depth, S.model, curr_depth, S, num_var);
+      char tState[num_var];
 
       while(counter--){
         if(S.model[a_tmp] != l_Undef){
-          printf( "%s", (S.model[a_tmp]==l_True)? "1":"0");
-          //lits.push((S.model[a_tmp]==l_True)? Lit(a_tmp): ~Lit(a_tmp));
-          //S.addClause(lits);
-          //lits.clear();
+          //printf("%s", (S.model[a_tmp]==l_True)? "1":"0");
+          sprintf(tState+b_tmp, "%s", (S.model[a_tmp]==l_True)? "1":"0"); 
         } else{
-          printf("-");
+          //printf("-");
+          sprintf(tState+b_tmp, "-");
         }
         a_tmp++;
+        b_tmp++;
       }
-        
-      //number_of_predecessors = number_of_predecessors + getPredecessors(S, state, num_var, curr_depth + 1);
-
-      printf("\n");
-
+      //printf("%s <- %s, ", state, tState);
+      //PRINT(curr_depth);
+      number_of_predecessors = number_of_predecessors + getPredecessors(orig_clauses, tState, num_var, curr_depth + 1);
+      
+      //constrain_state(curr_depth, S.model, curr_depth, S, num_var);
+      
+      i = num_var;
+      while (i--){
+          if (strcmp(tState, "-")) {
+            lits.push((tState[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+          }
+          else {
+          }
+      }
+      S.addClause(lits);
+      lits.clear();
     }
 
     return number_of_predecessors;
@@ -256,11 +289,9 @@ main(int argc, char *argv[])
     
   vec<Clause*>* orig_clauses_pr = S.Clauses();
 
-
   lits.clear();  
 
   i=(*orig_clauses_pr).size();
-  PRINT(i);
   
   while(i--){
     int j=(*((*orig_clauses_pr)[i])).size(); //ckhong: j has the number of literals in each clause
@@ -275,11 +306,12 @@ main(int argc, char *argv[])
     lits.clear();
   }
 
+  //PRINT(orig_clauses.size());
+
   /*Handle assignments of variables made in solver*/ 
   /*ckhong: what is this for ?*/ 
   /*ckhong: initial state value setting ?*/
   i=number_of_var;
-  //PRINT(i);
   while(i--){
     if(S.value(i)!= l_Undef){
       lits.push_back((S.value(i)==l_True)? Lit(i) : ~Lit(i));
@@ -288,8 +320,6 @@ main(int argc, char *argv[])
     }
   }
  
-  //PRINT(orig_clauses.size());
-
   global_var.S = &S;
   global_var.number_of_var = number_of_var;
   global_var.depth=2;
@@ -377,6 +407,8 @@ main(int argc, char *argv[])
   }
 
   /* ####### Basin Analysis ####### */
+  orig_clauses.clear();
+  
   Solver S_;
   //lits.clear();
 
@@ -396,45 +428,58 @@ main(int argc, char *argv[])
       tLits.clear();
   }*/
 
+  
+  i=(*orig_clauses_pr).size();
+
+  while(i--){
+    int j=(*((*orig_clauses_pr)[i])).size();
+
+    while(j--){
+      lits.push_back((*((*orig_clauses_pr)[i]))[j]);
+    }
+
+    orig_clauses.push_back( lits ); 
+    lits.clear();
+  }
+ 
+
   //global_var.S = &S_;
   global_var.number_of_var = number_of_var;
   global_var.depth = 2;
 
-  //printf("%d\n", getPredecessors(orig_clauses, number_of_var, 1));
+  int total_basin_size = 0;
 
-  printf("%d\n", getPredecessors(S_, global_var.Attractors[0].states[0].c_str(), number_of_var, 1));
+  for (i=0; i<7; i++) {
+      int tSize = getPredecessors(orig_clauses, global_var.Attractors[i].states[0].c_str(), number_of_var, 1);
+      total_basin_size = total_basin_size + tSize;
+      printf("Basin size for attractor_%d: %d\n", i, tSize);
+  }
+
+  printf("Total size: %d\n", total_basin_size);
+  //printf("Total state space: %d\n", int(pow(2, 12))); 
   
   /*
-  i=number_of_var;
-  tLits.clear();
-  while(i--){
-    //tLits.push((results[0][i]=='1')? ~Lit(i+number_of_var):Lit(i+number_of_var));
-    tLits.push((global_var.Attractors[0].states[0][i]=='1')? ~Lit(i+number_of_var) : Lit(i+number_of_var));
-  }
-  S_.addClause(tLits);
-  */
+  printf("%d\n", getPredecessors(orig_clauses, global_var.Attractors[4].states[0].c_str(), number_of_var, 1));
+  
+  
+  for (i=0; i<global_var.basins.size(); i++)
+      printf("%d: %s\n", i, global_var.basins[i].c_str());
 
-  /* 
-  while (1){
-      if (!S_.solve()) break;
-
-      for (i=1; i<global_var.depth; i++) {        
-          int a_tmp=i*number_of_var;
-          int counter=number_of_var;
-
-          constrain_state(1, S_.model, 1, S_, number_of_var);
-          
-          while(counter--){
-            if(S_.model[a_tmp] != l_Undef){
-               printf( "%s", (S_.model[a_tmp]==l_True)? "1":"0");
-            } else{
-               printf("-");
-            }
-            a_tmp++;
-          }
-        printf("\n");
+  
+  int flag = 0;
+  for (i=0; i<global_var.basins.size(); i++) {
+      for (int j=i+1; j<global_var.basins.size(); j++) {
+        if (!strcmp(global_var.basins[i].c_str(), global_var.basins[j].c_str())){
+            printf("%d\n", j);
+            flag = 1;
+            break;
+        }
       }
-  }*/
+  }
+
+  if (flag == 0)
+      printf("Every element is unique\n");
+  */
   return 0;
 }
 

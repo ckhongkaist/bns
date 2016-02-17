@@ -1,0 +1,25 @@
+Depth of unfolding transition relation is increased to 24
+Total number of attractors is 7
+Average length of attractors is 0.00
+Attractor 0
+000000000000 
+Attractor 1
+000001000000 
+Attractor 2
+000000010000 
+Attractor 3
+001010000000 
+Attractor 4
+000001010000 
+Attractor 5
+000101000000 
+Attractor 6
+000101010000 
+Basin size for attractor_0: 7
+Basin size for attractor_1: 9
+Basin size for attractor_2: 1
+Basin size for attractor_3: 160
+Basin size for attractor_4: 3799
+Basin size for attractor_5: 7
+Basin size for attractor_6: 113
+Total size: 4096
