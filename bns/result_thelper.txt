@@ -1,0 +1,16 @@
+Total number of attractors is 3
+Average length of attractors is 0.00
+Attractor 0
+00000000000000000000000 
+Attractor 1
+00000001000111000000000 
+Attractor 2
+00000000000000001111111 
+Basin size for attractor_0: 571689
+Basin size for attractor_1: 4814551
+Basin size for attractor_2: 3002368
+Total size: 8388608
+
+real    5m1.189s
+user    5m0.689s
+sys     0m0.392s

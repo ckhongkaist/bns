@@ -186,92 +186,38 @@ void construct_depth(unsigned k){
   global_var.depth=k;  
 }
 
-
-/*###### Make it recursive ! ######*/
-//int getPredecessors(Solver& S, const char *state, int num_var, int curr_depth) {
-int getPredecessors( std::vector< std::vector<Lit> > &orig_clauses, const char *state, int num_var, int curr_depth) {
+int getPredecessors(Solver& S, int attr_number, int num_var, int curr_depth) {
     vec<Lit> lits;
-    //global_var.basins.push_back(state);
 
-    int number_of_predecessors = 1;
+    int nBasins = 0;
 
-    /*
-    if (curr_depth == 12){ 
-        //printf("\n");
-        return number_of_predecessors;
-    }*/
-
-    Solver S;
     int i = num_var;
-    while (i--){
-        S.newVar(); S.newVar();
-    }
-    add_clauses_with_variable_shift(orig_clauses, S, 0);
     
-    //char state_[] = "000001000000";
-
-    i = num_var;
     while (i--){
-      lits.push((state[i]=='1')? Lit(i) : ~Lit(i));
+      lits.push((global_var.Attractors[attr_number].states[0].c_str()[i]=='1')? Lit(i) : ~Lit(i));
       S.addClause(lits);
       lits.clear();
     }
 
+    
     i = num_var;
     while (i--){
-        lits.push((state[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+        lits.push((global_var.Attractors[attr_number].states[0].c_str()[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
     }
     S.addClause(lits);
     lits.clear();
-
-    int nDirectPredecessors = 0;
-
+    
     while (1){
       if (!S.solve()) break;
 
-      int a_tmp=num_var;
-      int b_tmp=0;
-      int counter=num_var;
+      constrain_state(curr_depth-1, S.model, curr_depth-1, S, num_var);
 
-      char tState[num_var];
-
-      while(counter--){
-        if(S.model[a_tmp] != l_Undef){
-          //printf("%s", (S.model[a_tmp]==l_True)? "1":"0");
-          sprintf(tState+b_tmp, "%s", (S.model[a_tmp]==l_True)? "1":"0"); 
-        } else{
-          //printf("-");
-          sprintf(tState+b_tmp, "-");
-        }
-        a_tmp++;
-        b_tmp++;
-      }
-      //printf("%s <- %s, ", state, tState);
-      //PRINT(curr_depth);
-      number_of_predecessors = number_of_predecessors + getPredecessors(orig_clauses, tState, num_var, curr_depth + 1);
-      
-      //constrain_state(curr_depth, S.model, curr_depth, S, num_var);
-      
-      i = num_var;
-      while (i--){
-          if (strcmp(tState, "-")) {
-            lits.push((tState[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
-          }
-          else {
-          }
-      }
-      S.addClause(lits);
-      lits.clear();
-      nDirectPredecessors++;
+      nBasins++;
     }
 
-    /*
-    if (nDirectPredecessors > MAX_NUMBER_OF_HUBS) {
-        global_var.hubs.push_back(state);    
-    }*/
-
-    return number_of_predecessors;
+    return nBasins;
 }
+
 
 int 
 main(int argc, char *argv[]) 
@@ -290,11 +236,14 @@ main(int argc, char *argv[])
 
   ReadNET(argv[1], S); //ckhong: read networks and then make transition relations with depth 2 by using update functions
     
+  //PRINT(orig_clauses.size());
+
   vec<Clause*>* orig_clauses_pr = S.Clauses();
 
   lits.clear();  
 
   i=(*orig_clauses_pr).size();
+  //PRINT(i);
   
   while(i--){
     int j=(*((*orig_clauses_pr)[i])).size(); //ckhong: j has the number of literals in each clause
@@ -319,6 +268,8 @@ main(int argc, char *argv[])
     }
   }
  
+  //PRINT(orig_clauses.size());
+
   global_var.S = &S;
   global_var.number_of_var = number_of_var;
   global_var.depth=2;
@@ -397,89 +348,67 @@ main(int argc, char *argv[])
     std::cout << "\n";
   }
 
-  /* ####### Basin Analysis ####### */
+  int MAX_DEPTH = global_var.depth;
+
+/* ####### Basin Analysis ####### */
   
-  orig_clauses.clear();
+  int total_basin_size = 1;
+  int curr_depth = 0;
+  int attr_num = 0;
   
-  Solver S_;
-  //lits.clear();
+  for (curr_depth=2; curr_depth<MAX_DEPTH; curr_depth++) {
+    Solver S_;
+    orig_clauses.clear();
+    lits.clear();
 
-  ReadNET(argv[1], S_);
+    ReadNET(argv[1], S_);
+    
+    //PRINT(S_.nClauses());
 
-  orig_clauses_pr = S_.Clauses();
-  
-  i=(*orig_clauses_pr).size();
+    orig_clauses_pr = S_.Clauses();
+    
+    i=(*orig_clauses_pr).size();
+    //PRINT(i);
 
-  while(i--){
-    int j=(*((*orig_clauses_pr)[i])).size();
+    while(i--){
+        int j=(*((*orig_clauses_pr)[i])).size();
 
-    while(j--){
-      lits.push_back((*((*orig_clauses_pr)[i]))[j]);
+        while(j--){
+          lits.push_back((*((*orig_clauses_pr)[i]))[j]);
+        }
+        orig_clauses.push_back( lits ); 
+        lits.clear();
+    }
+    //PRINT(orig_clauses.size());
+
+    int count = 0;
+    i=number_of_var;
+    while(i--){
+        if(S_.value(i)!= l_Undef){
+            count++;
+            lits.push_back((S_.value(i)==l_True)? Lit(i) : ~Lit(i));
+            orig_clauses.push_back( lits );
+            lits.clear();
+        }
     }
 
-    orig_clauses.push_back( lits ); 
-    lits.clear();
-  }
- 
-  //global_var.S = &S_;
-  global_var.number_of_var = number_of_var;
-  global_var.depth = 2;
+    global_var.S = &S_;
+    global_var.depth = 2;
+    global_var.number_of_var = number_of_var;
+    //global_var.orig_clauses = &orig_clauses;
 
-  int total_basin_size = 0;
-
-//  for (i=0; i<global_var.Attractors.size(); i++) {  
-  for (i=0; i<1; i++) {
-      int tSize = getPredecessors(orig_clauses, global_var.Attractors[i].states[0].c_str(), number_of_var, 1);
-      total_basin_size = total_basin_size + tSize;
-      printf("Basin size for attractor_%d: %d\n", i, tSize);
-      /*
-      int j = global_var.hubs.size();
-      while (j--){
-        int k = number_of_var;
-        while (k--) {
-            lits.push_back((global_var.hubs[j][k]=='1')? ~Lit(number_of_var+k): Lit(number_of_var+k));
-        }
-        orig_clauses.push_back( lits );
-        lits.clear();
-      }*/
+    construct_depth(curr_depth);
+    int tSize = getPredecessors(S_, attr_num, number_of_var, curr_depth);
+    //printf("level %d: %d\n", curr_depth, tSize);
+    total_basin_size = total_basin_size + tSize;
+    
+    if (tSize == 0) {
+        break;
+    }
   }
-/*
- for (i=7; i<9; i++) {
-      int tSize = getPredecessors(orig_clauses, global_var.Attractors[i].states[0].c_str(), number_of_var, 1);
-      total_basin_size = total_basin_size + tSize;
-      printf("Basin size for attractor_%d: %d\n", i, tSize);
-  }
-*/
-  printf("Total size: %d\n", total_basin_size);
-  //printf("Total hub size: %d\n", global_var.hubs.size());
-  //printf("Total state space: %d\n", int(pow(2, 12))); 
   
- //printf("%d\n", getPredecessors(orig_clauses, global_var.Attractors[0].states[0].c_str(), number_of_var, 1));
+  printf("Basin size for attractor %d: %d\n", attr_num, total_basin_size);
 
-  /*
-  printf("%d\n", getPredecessors(orig_clauses, global_var.Attractors[4].states[0].c_str(), number_of_var, 1));
-  */
-  
-  /*
-  for (i=0; i<global_var.basins.size(); i++)
-      printf("%d: %s\n", i, global_var.basins[i].c_str());
-  */
-  
-  /*
-  int flag = 0;
-  for (i=0; i<global_var.basins.size(); i++) {
-      for (int j=i+1; j<global_var.basins.size(); j++) {
-        if (!strcmp(global_var.basins[i].c_str(), global_var.basins[j].c_str())){
-            printf("%d\n", j);
-            flag = 1;
-            break;
-        }
-      }
-  }
-
-  if (flag == 0)
-      printf("Every element is unique\n");*/
-  //printf("%d\n", global_var.basins.size());
   return 0;
 }
 
