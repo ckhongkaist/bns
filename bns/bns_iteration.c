@@ -124,20 +124,6 @@ void constrain_state(unsigned a, vec<lbool>& stats_sequance, unsigned b, Solver 
 #endif  
 }
 
-/*
-void constrain_state_(unsigned a, char * result, Solver &S, unsigned number_var){
-  vec<Lit> lits;
-  int a_tmp=a*number_var;
-  int b_tmp=0;
-  
-  while(number_var--){
-      lits.push((result[a_tmp]=='1')?~Lit(b_tmp):Lit(b_tmp));
-      a_tmp++;
-      b_tmp++;
-  }
-  S.addClause(lits);
-}
-*/
 
 void add_clauses_with_variable_shift( std::vector< std::vector<Lit> > &clauses2add, Solver &S,int shift){
 
@@ -189,7 +175,7 @@ void construct_depth(unsigned k){
 
 /*###### Make it recursive ! ######*/
 //int getPredecessors(Solver& S, const char *state, int num_var, int curr_depth) {
-int getPredecessors( std::vector< std::vector<Lit> > &orig_clauses, const char *state, int num_var, int curr_depth, std::vector< std::string > &result) {
+int getPredecessors( std::vector< std::vector<Lit> > &orig_clauses, const char *state, int num_var, int attr_num, int state_num, std::vector< std::string > &result) {
     vec<Lit> lits;
     //global_var.basins.push_back(state);
 
@@ -217,12 +203,22 @@ int getPredecessors( std::vector< std::vector<Lit> > &orig_clauses, const char *
       lits.clear();
     }
 
-    i = num_var;
-    while (i--){
-        lits.push((state[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+    if (state_num + 1 < global_var.Attractors[attr_num].states.size()) {
+        i = num_var;
+        while (i--){
+            lits.push((global_var.Attractors[attr_num].states[state_num+1].c_str()[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+        }
+        S.addClause(lits);
+        lits.clear();
+    } else {
+        i = num_var;
+        while (i--){
+            //lits.push((state[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+            lits.push((global_var.Attractors[attr_num].states[0].c_str()[i]=='1')? ~Lit(i+num_var) : Lit(i+num_var));
+        }
+        S.addClause(lits);
+        lits.clear();
     }
-    S.addClause(lits);
-    lits.clear();
 
     int nDirectPredecessors = 0;
 
@@ -398,11 +394,10 @@ main(int argc, char *argv[])
 
   int max_depth = global_var.depth;
 
-  printf("\n\nBasin Analsysis\n");
+  printf("\n\nBasin Analysis\n");
   PRINT(max_depth);
 
   /* ####### Basin Analysis ####### */
-  
   orig_clauses.clear();
   
   Solver S_;
@@ -434,14 +429,45 @@ main(int argc, char *argv[])
   std::vector< std::string > curr_basins;
   std::vector< std::string > next_basins;
 
-  for (int attr_num = 1; attr_num < 2; attr_num++) {
+  for (int attr_num = 0; attr_num < global_var.Attractors.size()-1; attr_num++){
+    int nStates = global_var.Attractors[attr_num].states.size();
+    PRINT(nStates);
+    unsigned int tBasin_size = 0;
+    for (int state_num = 0; state_num < nStates; state_num++){
+        curr_basins.push_back(global_var.Attractors[attr_num].states[state_num].c_str());
+        for (i=0; i<max_depth; i++){
+            int tSize = 0;
+            for (int j=0; j<curr_basins.size(); j++) {
+                tSize = tSize + getPredecessors(orig_clauses, curr_basins[j].c_str(), number_of_var, attr_num, state_num, next_basins);
+            }
+            if (!tSize) break;
+            curr_basins.resize((int)next_basins.size());
+            std::copy(next_basins.begin(), next_basins.end(), curr_basins.begin());
+            next_basins.clear();
+            tBasin_size+=tSize;
+            //printf("%d\n", tSize);
+        }
+        curr_basins.clear();
+        next_basins.clear();
+    }
+    printf("Basin size for attractor %d: %d\n", attr_num, tBasin_size);
+    total_basin_size+=tBasin_size;
+  }
+
+  printf("Basin size for attractor: %d: %d\n", global_var.Attractors.size()-1, (int)pow(2,number_of_var) - total_basin_size);
+
+  printf("Total size: %d\n", total_basin_size);
+//  printf("2^%d: %d\n", number_of_var, (int)pow(2,number_of_var)); 
+
+/*
+  for (int attr_num = 0; attr_num < 4; attr_num++) {
     curr_basins.push_back(global_var.Attractors[attr_num].states[0].c_str());
     unsigned int tBasin_size = 0;
     for (i=0; i<max_depth; i++){
       int tSize = 0;
       PRINT(i);
       for (int j=0; j<curr_basins.size(); j++) {
-        tSize = tSize + getPredecessors(orig_clauses, curr_basins[j].c_str(), number_of_var, 1, next_basins);
+        tSize = tSize + getPredecessors(orig_clauses, curr_basins[j].c_str(), number_of_var, attr_num, next_basins);
       }
       if (!tSize) break;
       
@@ -457,7 +483,7 @@ main(int argc, char *argv[])
   }
   
   printf("Total size: %d\n", total_basin_size);
-  
+*/  
   return 0;
 }
 
